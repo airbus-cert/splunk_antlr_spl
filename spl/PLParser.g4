@@ -9,7 +9,7 @@ prog : stat+;
 //    | NEWLINE               # blank
 //    ;
 /*
-    一个完整的Spl语句
+    一个完整的Spl语句 - A complete Spl statement
 */
 stat: pipe_spl_fragment;
 
@@ -19,9 +19,12 @@ NUMBER : Digits ('.' Digits?)?
            |  '.' Digits
            ;
 NEWLINE:'\r'? '\n' ;
-STRING : '"'('""'|~'"')* '"' ;
-WC_STRING : ('*' | STRING)* ;
-//字段列表
+STRING: QUOTED_STRING | BARE_STRING;
+QUOTED_STRING: '"'('""'|~'"')* '"';
+BARE_STRING: ~' '+;
+
+WC_STRING : ('*' | STRING)+ ;
+//字段列表 - Field list
 id_list : ID (','ID)*;
 field : ID ;
 field_list : ID (',' ID)* ;
@@ -29,7 +32,7 @@ wc_field : (ID | '*' )+ ;
 wc_field_list : wc_field (','wc_field)* ;
 
 /*
-    跳过空白字符
+    跳过空白字符 - Assignment
 */
 WS : [ \t]+ -> skip;
 //赋值
@@ -50,11 +53,11 @@ fragment Digits
     : [0-9]+
     ;
 
-bool
+boolean
     : 'true' | 'false'
     ;
 /*
-    数学运算符
+    数学运算符 - Mathematical operators
 */
 MUL:                                '*';
 ADD:                                '+';
@@ -64,7 +67,7 @@ DIV:                                 '/';
 MOD:                                 '%';
 
 /*
-    比较运算符
+    比较运算符 - Comparison operator
 */
 EQ:                                  '=';
 NEQ:                                 '!=';
@@ -136,7 +139,12 @@ primitive_expr
     | field
     | INT
     | STRING
+    | subsearch
+    | macro
     ;
+
+macro
+    : '`' STRING '`';
 
 functionCall
     : functionName'(' functionParamList ')';
@@ -154,7 +162,7 @@ functionParam
     | math_expr
     ;
 /*
-    数学运算表达式，使用eval函数来计算
+    数学运算表达式，使用eval函数来计算 - Mathematical expressions, calculated using the eval function
 */
 math_expr: math_expr op=('*'|'/') math_expr
     | math_expr op=('+'|'-') math_expr
@@ -169,6 +177,11 @@ math_expr: math_expr op=('*'|'/') math_expr
         3、字段与数学表达式
         4、数学表达式与数学表达式
 
+Conditional expression:
+         1. Comparison of fields and numbers
+         2. Fields and strings
+         3. Fields and mathematical expressions
+         4. Mathematical expressions
 */
 compare_expr
     : field
@@ -181,7 +194,7 @@ compare_expr
 
 //cond_expr_index: 'index=' | ;
 /*
-    逻辑运算表达式
+    逻辑运算表达式 - Logical operation expression
 */
 logical_expr
     : NOT logical_expr
@@ -190,7 +203,7 @@ logical_expr
     | compare_expr
     ;
 /*
-    通用表达式，包含函数、数学运算、条件运算、逻辑运算
+    通用表达式，包含函数、数学运算、条件运算、逻辑运算 - Generic expressions, including functions, mathematical operations, conditional operations, and logical operations
 */
 eval_expr
     : primitive_expr
@@ -199,24 +212,25 @@ eval_expr
     | logical_expr
     ;
 
-//赋值表达式
+//赋值表达式 - Assignment expression
 assign_expr
     : ID EQ eval_expr
     ;
 
-//SPL语句定义开始
+//SPL语句定义开始 - SPL statement definition starts
 /*
-    SPL语句定义
+    SPL语句定义 - SPL Statement definition begins
 */
 pipe_spl_fragment
     :(pipe_command_source|pipe_command_null) NEWLINE* (PIPE_SYMBOL NEWLINE* pipe_command)*
     ;
 /*
-    SPL 命令定义
+    SPL 命令定义 - SPL command definition
 */
 pipe_command_source
     : pipe_command_search /*splunk*/
     | pipe_command_null
+    | pipe_command_inputlookup
     ;
 
 pipe_command
@@ -412,7 +426,7 @@ pipe_command_addinfo
    addtotals待完善
 */
 pipe_command_addtotals
-    : 'addtotals' ('row' EQ bool) ('col' EQ bool) ('labelfield' EQ field)? ('label' EQ STRING)
+    : 'addtotals' ('row' EQ boolean) ('col' EQ boolean) ('labelfield' EQ field)? ('label' EQ STRING)
       ('fieldname' EQ 'field')? field_list
     ;
 
@@ -440,7 +454,7 @@ pipe_command_analyzefields
 */
 pipe_command_anomalies
     : 'anomalies'
-       ('threshold' EQ NUMBER |  'labelonly' EQ bool | 'normalize' EQ bool |  'maxvalues' EQ INT
+       ('threshold' EQ NUMBER |  'labelonly' EQ boolean | 'normalize' EQ boolean |  'maxvalues' EQ INT
             | 'field' EQ field | 'blacklist' EQ filename=STRING |  'blacklistthreshold' EQ NUMBER)*
        column_split_by_clause?
     ;
@@ -510,7 +524,7 @@ pthresh_option
     : 'pthresh' EQ NUMBER
     ;
 cutoff_option
-    : 'cutoff' EQ bool
+    : 'cutoff' EQ boolean
     ;
 
 /*
@@ -533,7 +547,7 @@ append_subsearch_options
 */
 pipe_command_appendcols
     : 'appendcols'
-        ('override' EQ  <bool> | append_subsearch_options)*
+        ('override' EQ  <boolean> | append_subsearch_options)*
         subsearch
     ;
 
@@ -545,7 +559,7 @@ pipe_command_appendcols
 */
 
 pipe_command_appendpipe
-    : 'appendpipe' ('run_in_preview' EQ bool)? subpipeline
+    : 'appendpipe' ('run_in_preview' EQ boolean)? subpipeline
     ;
 subpipeline
     : STRING
@@ -643,7 +657,7 @@ pipe_command_chart
     ;
 
 chart_option
-    : 'cont' EQ bool | 'format' EQ STRING | 'limit' EQ INT | 'sep' EQ STRING
+    : 'cont' EQ boolean | 'format' EQ STRING | 'limit' EQ INT | 'sep' EQ STRING
     ;
 
 sparkline_agg
@@ -661,7 +675,7 @@ row_split
     : field bin_options*
     ;
 tc_option
-    :  bin_options | 'usenull' EQ bool | 'useother' EQ bool | 'nullstr' EQ STRING | 'otherstr' EQ STRING
+    :  bin_options | 'usenull' EQ boolean | 'useother' EQ boolean | 'nullstr' EQ STRING | 'otherstr' EQ STRING
     ;
 column_split
     : field tc_option* where_clause?
@@ -686,8 +700,8 @@ pipe_command_cluster
     ;
 
 slc_options
-    : 't' EQ NUMBER | 'delims' EQ STRING | 'showcount' EQ bool | 'countfield' EQ field
-        | 'labelfield' EQ field | 'field' EQ field | 'labelonly' EQ bool
+    : 't' EQ NUMBER | 'delims' EQ STRING | 'showcount' EQ boolean | 'countfield' EQ field
+        | 'labelfield' EQ field | 'field' EQ field | 'labelonly' EQ boolean
         | 'match' EQ ('termlist' | 'termset' | 'ngramset')
     ;
 /*
@@ -712,9 +726,9 @@ pipe_command_collect
     : 'collect' ('index' EQ STRING) (collect_arg_options)*
     ;
 collect_arg_options
-    :  'addtime' EQ bool | ('file' EQ STRING) |  'host' EQ STRING |  'marker' EQ STRING
-       'run_in_preview' EQ bool |  'spool' EQ bool | 'source' EQ STRING |
-       'sourcetype' EQ STRING |  'testmode' EQ bool
+    :  'addtime' EQ boolean | ('file' EQ STRING) |  'host' EQ STRING |  'marker' EQ STRING
+       'run_in_preview' EQ boolean |  'spool' EQ boolean | 'source' EQ STRING |
+       'sourcetype' EQ STRING |  'testmode' EQ boolean
     ;
 
 /*
@@ -749,7 +763,7 @@ min_cover
     : 'mincolcover' EQ NUMBER | 'minrowcover' EQ NUMBER
     ;
 use_total
-    : 'usetotal' EQ bool
+    : 'usetotal' EQ boolean
     ;
 total_str
     : 'totalstr' EQ field
@@ -811,7 +825,7 @@ pipe_command_datamodel
 pipe_command_dbinspect
     : pipe_command_null '|' 'dbinspect'
         ('index' EQ WC_STRING)*
-        (('span' EQ time_span | timeformat=STRING) |  'corruptonly' EQ bool)*
+        (('span' EQ time_span | timeformat=STRING) |  'corruptonly' EQ boolean)*
     ;
 /*
     delete命令，将搜索结果在索引中标记为删除状态，并不是真删除
@@ -842,7 +856,7 @@ delta_p
     ... | diff position1=9 position2=10 diffheader=true
 */
 pipe_command_diff
-    : 'diff'  ( 'position1' EQ INT  | 'position2' EQ INT | 'attribute' EQ STRING  |  'diffheader' EQ bool  | 'context' EQ bool | 'maxlen' EQ INT )*
+    : 'diff'  ( 'position1' EQ INT  | 'position2' EQ INT | 'attribute' EQ STRING  |  'diffheader' EQ boolean  | 'context' EQ boolean | 'maxlen' EQ INT )*
     ;
 
 /*
@@ -864,7 +878,7 @@ pipe_command_eval
     eventcount命令
 */
 pipe_command_eventcount
-    : pipe_command_null '|' 'eventcount ' ('index' EQ STRING)? ('list_vix' EQ bool)? ('report_size' EQ INT)?
+    : pipe_command_null '|' 'eventcount ' ('index' EQ STRING)? ('list_vix' EQ boolean)? ('report_size' EQ INT)?
     ;
 
 /*
@@ -872,7 +886,7 @@ pipe_command_eventcount
     待丰富
 */
 pipe_command_eventstats
-    : 'eventstats ' ('allnum' EQ bool)? (stats_agg_term as_clause field)+ ('BY' split_by_clause)?
+    : 'eventstats ' ('allnum' EQ boolean)? (stats_agg_term as_clause field)+ ('BY' split_by_clause)?
     ;
 
 /*
@@ -884,8 +898,8 @@ pipe_command_extract
     ;
 
 extract_options
-    : 'clean_keys' EQ bool | 'kvdelim' EQ STRING | 'limit' EQ INT | 'maxchars' EQ INT |
-      'mv_add' EQ bool | 'pairdelim' EQ STRING | 'reload' EQ bool | 'segment' EQ bool
+    : 'clean_keys' EQ boolean | 'kvdelim' EQ STRING | 'limit' EQ INT | 'maxchars' EQ INT |
+      'mv_add' EQ boolean | 'pairdelim' EQ STRING | 'reload' EQ boolean | 'segment' EQ boolean
     ;
 
 
@@ -1000,7 +1014,7 @@ timestamp
     geom命令把以个名为geom的字段添加到每个事件。该字段JSON地理数据结构。这些地理数据结构用于创建Choropleth地图可视化。
 */
 pipe_command_geom
-    : 'geom'  (featureCollection)? ('allFeatures' EQ bool)? ('featureIdField' EQ STRING)?
+    : 'geom'  (featureCollection)? ('allFeatures' EQ boolean)? ('featureIdField' EQ STRING)?
       ('gen' EQ NUMBER)? ('min_x' EQ NUMBER)? ('min_y' EQ NUMBER)? ('max_x' EQ NUMBER)? ('max_y' EQ NUMBER)?
     ;
 
@@ -1020,7 +1034,7 @@ pipe_command_geomfilter
     使用geostats命令生成成统计信息，以在地图上显示地理数据并汇总这些数据。
 */
 pipe_command_geostats
-    : 'geostats' ('translatetoxy' EQ bool)? ('latfield' EQ field)? ('longfield' EQ field)? ('globallimit' EQ INT)?
+    : 'geostats' ('translatetoxy' EQ boolean)? ('latfield' EQ field)? ('longfield' EQ field)? ('globallimit' EQ INT)?
                  ('locallimit' EQ INT)? ('outputlatfield'EQ STRING)? ('outputlongfield' EQ STRING)?
                  ('binspanlat' EQ NUMBER)? ('binspanlong' EQ NUMBER)? ('maxzoomlevel' EQ INT)?
                  stats_agg_term column_split_by_clause?
@@ -1046,7 +1060,7 @@ pipe_command_highlight
     使用此命令查看当前用户的搜索历史。以事件集或表形式显示搜索历史。
 */
 pipe_command_history
-    : 'history' ('events' EQ bool)?
+    : 'history' ('events' EQ boolean)?
     ;
 
 /*
@@ -1062,8 +1076,8 @@ pipe_command_input
     没理解这个命令
 */
 pipe_command_inputcsv
-    : pipe_command_null '|' 'inputcsv' ('dispatch' EQ bool)? ('append' EQ bool)?
-        ('start' EQ INT)? ('max' EQ INT)? ('events' EQ bool)?
+    : pipe_command_null '|' 'inputcsv' ('dispatch' EQ boolean)? ('append' EQ boolean)?
+        ('start' EQ INT)? ('max' EQ INT)? ('events' EQ boolean)?
         filename=STRING where_clause?
     ;
 
@@ -1072,7 +1086,7 @@ pipe_command_inputcsv
     使用inputlookup命令搜索查找表的内容。查找表可以是CSV查找或KV存储查找。
 */
 pipe_command_inputlookup
-    : pipe_command_null '|' 'inputlookup' ('append' EQ bool)? ('start' EQ INT)? ('max' EQ INT)?
+    : pipe_command_null '|' 'inputlookup' ('append' EQ boolean)? ('start' EQ INT)? ('max' EQ INT)?
         (filename=STRING | tablename=STRING)
         where_clause?
     ;
@@ -1082,7 +1096,7 @@ pipe_command_inputlookup
     使用第三方数据库IP地址提取位置信息。此命令支持IPv4和IPv6。
 */
 pipe_command_iplocation
-    : 'iplocation' ('prefix' EQ STRING)? ('allfields' EQ bool)? ('lang' EQ STRING)?
+    : 'iplocation' ('prefix' EQ STRING)? ('allfields' EQ boolean)? ('lang' EQ STRING)?
         ip_address_fieldname=field
     ;
 
@@ -1096,12 +1110,12 @@ pipe_command_join
     ;
 
 join_options
-    : 'type' EQ ('inner' | 'left' | 'right') | 'usetime' EQ bool
-        'earlier' EQ bool | 'overwrite' EQ bool | 'max' EQ INT
+    : 'type' EQ ('inner' | 'left' | 'right') | 'usetime' EQ boolean
+        'earlier' EQ boolean | 'overwrite' EQ boolean | 'max' EQ INT
     ;
 
 subsearch
-    : '[' STRING ']'
+    : '[' prog ']'
     ;
 
 /*
@@ -1114,7 +1128,7 @@ pipe_command_kmeans
 
 kmeans_options
     : 'reps' EQ INT| 'maxiters' EQ INT | 't' EQ NUMBER | 'k' EQ (INT | INT '-' INT) |
-        'cfield' EQ field | distype | 'showcentroid' EQ bool
+        'cfield' EQ field | distype | 'showcentroid' EQ boolean
     ;
 /*
     指定要使用的距离指标。l1 , l1norm 和 cb 距离指标等同于 cityblock。l2 , l2norm 和sq 等同于 sqeuclidean
@@ -1140,7 +1154,7 @@ loadjob
 运行 loadjob 命令。
 */
 pipe_command_loadjob
-    : pipe_command_null '|' 'loadjob' (sid = STRING | savedsearch) ('result-event' EQ bool)?
+    : pipe_command_null '|' 'loadjob' (sid = STRING | savedsearch) ('result-event' EQ boolean)?
         delegate? artifact_offset? ignore_running?
     ;
 savedsearch
@@ -1153,7 +1167,7 @@ artifact_offset
     : 'artifact_offset' EQ INT
     ;
 ignore_running
-    : 'ignore_running' EQ bool
+    : 'ignore_running' EQ boolean
     ;
 
 /*
@@ -1188,7 +1202,7 @@ pipe_command_localop
     lookup
 */
 pipe_command_lookup
-    : 'lookup'  (local = bool)? (update = bool)? ('lookup-table-name' EQ STRING) lookup_field_list?
+    : 'lookup'  (local = boolean)? (update = boolean)? ('lookup-table-name' EQ STRING) lookup_field_list?
         lookup_output?
     ;
 lookup_field_list
@@ -1213,7 +1227,7 @@ pipe_command_makecontinuous
 */
 pipe_command_makemv
     : 'makemv' ('delim' EQ STRING | 'tokenizer' EQ STRING)?
-        ('allowempty' EQ bool)? ('setsv' EQ bool)? field
+        ('allowempty' EQ boolean)? ('setsv' EQ boolean)? field
     ;
 
 /*
@@ -1221,7 +1235,7 @@ pipe_command_makemv
     生成指定数量的搜索结果。如果未指定任何可选参数，则此命令在本地计算机上运行，并生成⼀个仅带有 _time 字段的结果。
 */
 pipe_command_makeresults
-    : | 'makeresults' (count=INT)? (annotate=bool)? (splunk_server=STRING)? (splunk_server_group=STRING)?
+    : | 'makeresults' (count=INT)? (annotate=boolean)? (splunk_server=STRING)? (splunk_server_group=STRING)?
     ;
 
 /*
@@ -1309,7 +1323,7 @@ pipe_command_outlier
     ;
 
 outlier_options
-    : 'action' EQ ('remove' | 'rm' | 'transform' | 'tf') | 'mark' EQ bool | 'param' EQ INT | 'uselower' EQ bool
+    : 'action' EQ ('remove' | 'rm' | 'transform' | 'tf') | 'mark' EQ boolean | 'param' EQ INT | 'uselower' EQ boolean
     ;
 
 /*
@@ -1318,8 +1332,8 @@ outlier_options
     定的CSV文件中。更新到$SPLUNK_HOME/var/run/*.csv，使用outputcsv。
 */
 pipe_command_outputcsv
-    : 'outputcsv' ('append' EQ bool)? ('create_empty' EQ bool)? ('dispatch' EQ bool)? ('usexml' EQ bool)?
-      ('singlefile' EQ bool)? (filename=STRING)?
+    : 'outputcsv' ('append' EQ boolean)? ('create_empty' EQ boolean)? ('dispatch' EQ boolean)? ('usexml' EQ boolean)?
+      ('singlefile' EQ boolean)? (filename=STRING)?
     ;
 
 /*
@@ -1327,8 +1341,8 @@ pipe_command_outputcsv
     将搜索结果写入您指定的静态查找表或KV存储集合中。
 */
 pipe_command_outputlookup
-    : pipe_command_null '|' 'outputlookup' ('append' EQ bool)? ('create_empty' EQ bool)? ('max' EQ INT)
-        ('key_field' EQ field)? ('createinapp' EQ bool)? (filename = STRING | tablename = STRING)
+    : pipe_command_null '|' 'outputlookup' ('append' EQ boolean)? ('create_empty' EQ boolean)? ('max' EQ INT)
+        ('key_field' EQ field)? ('createinapp' EQ boolean)? (filename = STRING | tablename = STRING)
     ;
 
 /*
@@ -1336,7 +1350,7 @@ pipe_command_outputlookup
     将结果的原始文本(_raw)输出到_xml字段中。
 */
 pipe_command_outputtext
-    : 'outputtext' ('usexml' EQ bool)?
+    : 'outputtext' ('usexml' EQ boolean)?
     ;
 
 /*
@@ -1358,7 +1372,7 @@ pipe_command_pivot
 pivot_element
     : 'pivot_element'
     /*(<cellvalue>)* splitrow_rowvalue* splitcol_colvalue* (FILTER logical_expr)*
-        limit_expression* ('ROWSUMMARY' bool)* ('COLSUMMARY' bool)* ('SHOWOTHER' bool)*
+        limit_expression* ('ROWSUMMARY' boolean)* ('COLSUMMARY' boolean)* ('SHOWOTHER' boolean)*
         ('NUMCOLS' INT)* //(rowsort [options])*没看懂，留待以后完善*/
     ;
 
@@ -1397,7 +1411,7 @@ predict_options
         | 'future_timespan' EQ NUMBER
         | 'holdback' EQ NUMBER
         | 'period' EQ NUMBER
-        | 'suppress' EQ bool
+        | 'suppress' EQ boolean
         | 'lowerXX' EQ field
         | 'upperYY' EQ field
     ;
@@ -1423,8 +1437,8 @@ pipe_command_rare
     : 'rare' top_options? field_list column_split_by_clause?
     ;
 top_options
-    : 'countfield' EQ STRING | 'limit' EQ INT | 'percentfield' EQ  STRING | 'showcount' EQ bool |
-      'showperc' EQ bool
+    : 'countfield' EQ STRING | 'limit' EQ INT | 'percentfield' EQ  STRING | 'showcount' EQ boolean |
+      'showperc' EQ boolean
     ;
 
 /*
@@ -1539,7 +1553,7 @@ sed_expression
     事件。如果  discard  设置为  true ，将始终放弃无序事件，从而保证输出始终严格以时间顺序的升序排列。
 */
 pipe_command_rtorder
-    : 'rtorder' ('discard' EQ bool)? ('buffer_span' EQ time_span)? ('max_buffer_size' EQ INT)?
+    : 'rtorder' ('discard' EQ boolean)? ('buffer_span' EQ time_span)? ('max_buffer_size' EQ INT)?
     ;
 
 /*
@@ -1557,7 +1571,7 @@ pipe_command_savedsearch
     : pipe_command_null '|' 'savedsearch' savedsearch_name=STRING savedsearch_options*
     ;
 savedsearch_options
-    : ('nosubstitution' EQ bool) | 'replacement' EQ STRING
+    : ('nosubstitution' EQ boolean) | 'replacement' EQ STRING
     ;
 
 /*
@@ -1601,8 +1615,8 @@ savedsplunkoption
     快速返回匹配到交易类型且包含特定文本的交易事件。
 */
 pipe_command_searchtxn
-    : pipe_command_null '|' 'searchtxn' transaction_name ('max_terms' EQ INT)? ('use_disjunct' EQ bool)?
-      ('eventsonly' EQ bool)? search_string=STRING
+    : pipe_command_null '|' 'searchtxn' transaction_name ('max_terms' EQ INT)? ('use_disjunct' EQ boolean)?
+      ('eventsonly' EQ boolean)? search_string=STRING
     ;
 /*
     transaction_type是transactiontypes.conf中定义的stantz
@@ -1618,7 +1632,7 @@ pipe_command_selfjoin
     : 'selfjoin' selfjoin_options* field_list
     ;
 selfjoin_options
-    : 'overwrite' EQ bool | 'max' EQ INT | 'keepsingle' EQ bool
+    : 'overwrite' EQ boolean | 'max' EQ INT | 'keepsingle' EQ boolean
     ;
 
 /*
@@ -1632,18 +1646,18 @@ pipe_command_sendemail
         ('bcc' EQ email_list)?
         ('subject' EQ STRING)?
         ('format' EQ ('csv' | 'table' | 'raw'))?
-        ('inline' EQ bool)?
-        ('sendresults' EQ bool)?
-        ('sendpdf' EQ bool)?
+        ('inline' EQ boolean)?
+        ('sendresults' EQ boolean)?
+        ('sendpdf' EQ boolean)?
         ('priority' EQ ('highest' | 'high' | 'normal' | 'low' | 'lowest'))?
         ('server' EQ STRING)?
-        ('width_sort_columns' EQ bool)?
-        ('graceful' EQ bool)?
+        ('width_sort_columns' EQ boolean)?
+        ('graceful' EQ boolean)?
         ('content_type' EQ ('html' | 'plain'))?
         ('message' EQ STRING)?
-        ('sendcsv' EQ bool)?
-        ('use_ssl' EQ bool)?
-        ('use_tls' EQ bool)?
+        ('sendcsv' EQ boolean)?
+        ('use_ssl' EQ boolean)?
+        ('use_tls' EQ boolean)?
         ('pdfview' EQ STRING)?
         ('papersize' EQ ('letter' | 'legal' | 'ledger' | 'a2' | 'a3' | 'a4' | 'a5'))?
         ('paperorientation' EQ ('portrait' | 'landscape'))?
@@ -1738,7 +1752,7 @@ pipe_command_stats
     strcat
 */
 pipe_command_strcat
-    : 'strcat' ('allrequired' EQ bool)? source_fields dest_field=field
+    : 'strcat' ('allrequired' EQ boolean)? source_fields dest_field=field
     ;
 
 source_fields
@@ -1765,7 +1779,7 @@ pipe_command_table
     tags
 */
 pipe_command_tags
-    : 'tags'  ('outputfield' EQ field)? ('inclname' EQ bool)? ('inclvalue' EQ bool)? field_list
+    : 'tags'  ('outputfield' EQ field)? ('inclname' EQ boolean)? ('inclvalue' EQ boolean)? field_list
     ;
 
 /**
@@ -1828,7 +1842,7 @@ pipe_command_transaction
     ;
 txn_definition_options
     :   'maxspan' EQ INT | 'maxpause' EQ INT (second | minute | hr | day)? | 'maxevents' EQ INT | 'startswith' EQ filter_expr | 
-        'endswith' EQ filter_expr |'connected' EQ bool | 'unifyends' EQ bool | 'keeporphans' EQ bool
+        'endswith' EQ filter_expr |'connected' EQ boolean | 'unifyends' EQ boolean | 'keeporphans' EQ boolean
     ;
 filter_expr
     : logical_expr
@@ -1849,7 +1863,7 @@ rendering_options
     将指定的行（搜索结果）数以列（字段值列表）形式返回，以便每个搜索行都变成⼀列。
 */
 pipe_command_transpose
-    : 'transpose' INT? ('column_name' EQ STRING)? ('header_field' EQ field)? ('include_empty' EQ bool)?
+    : 'transpose' INT? ('column_name' EQ STRING)? ('header_field' EQ field)? ('include_empty' EQ boolean)?
     ;
 
 /*
@@ -1873,7 +1887,7 @@ trendtype
     建⼀个新  tsidx 。
 */
 pipe_command_tscollect
-    : 'tscollect' (namespace=STRING)? ('squashcase' EQ bool)? ('keepresults' EQ bool)?
+    : 'tscollect' (namespace=STRING)? ('squashcase' EQ boolean)? ('keepresults' EQ boolean)?
     ;
 
 /*
@@ -1882,7 +1896,7 @@ pipe_command_tscollect
 */
 pipe_command_tstats
     : '|' 'tstats'
-            ( 'prestats' EQ bool | 'local' EQ bool |  'append' EQ bool | 'summariesonly' EQ bool |'allow_old_summaries' EQ bool |  'chunk_size' EQ INT)*
+            ( 'prestats' EQ boolean | 'local' EQ boolean |  'append' EQ boolean | 'summariesonly' EQ boolean |'allow_old_summaries' EQ boolean |  'chunk_size' EQ INT)*
              stats_func*
              ('FROM' (namespace=STRING | 'sid' EQ tscollect_job_id=STRING | 'datamodel' EQ data_model_name=STRING ))?
              where_clause? (column_split_by_clause  ('span' EQ time_span)?)?
@@ -1908,7 +1922,7 @@ pipe_command_typeahead
 */
 pipe_command_typelearner
     : pipe_command_null '|' 'typeahead' ('prefix' EQ STRING) ('count' EQ INT) ('max_time' EQ INT)? ('index' EQ STRING)?
-      ('starttimeu' EQ INT)? ('endtimeu' EQ INT)? ('collapse' EQ bool)?
+      ('starttimeu' EQ INT)? ('endtimeu' EQ INT)? ('collapse' EQ boolean)?
     ;
 
 /*
@@ -1996,7 +2010,7 @@ pipe_command_xpath
     将结果转换为适用于绘图的格式。
 */
 pipe_command_xyseries
-    : 'xyseries' ('grouped' EQ bool)? x_field=field  y_name_field=field y_data_field=field_list ('sep' EQ STRING)?
+    : 'xyseries' ('grouped' EQ boolean)? x_field=field  y_name_field=field y_data_field=field_list ('sep' EQ STRING)?
        ('format' EQ STRING)?
     ;
 
@@ -2073,4 +2087,3 @@ mathOperator
 constant
     : STRING | NUMBER
     ;
-
