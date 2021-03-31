@@ -7,6 +7,7 @@ XOR: 'XOR';
 
 BY: 'BY' | 'by';
 AS: 'AS' | 'as';
+IN: 'IN';
 
 IF: 'IF' | 'if';
 CASE: 'CASE' | 'case';
@@ -107,7 +108,7 @@ reserved_keywords
   | 'span'
   | 'sort'
   | 'transpose'
-  | 'in'
+  | IN
   | 'allnum'
   | 'delim'
   | 'extendtimerange'
@@ -150,21 +151,9 @@ PLUS: '+';
 MINUS: '-';
 CONCAT: '.';
 
-WORD
- : LetterOrDigitOrPunctFinal LetterOrDigitOrPunct*? LetterOrDigitOrPunctFinal+?
- | LetterOrPunctFinal
- ;
-
-left_side_value
-  : WORD
-  | ID
-  | reserved_keywords
-  ;
-
 fieldname
-  : WORD
-  | ID
-  | reserved_keywords
+  : ID
+  //| reserved_keywords
   //| '"' fieldname '"'
   | '*'
   | STRING
@@ -284,31 +273,31 @@ spl_generating_command
   ;
 
 spl_command_search
-  : ('search') search_arg*
+  : ('search') search_arg+
   ;
 
 search_arg
-  : search_arg logical_operator search_arg
-  | unary_operator search_arg
+  : unary_operator search_arg
+  | LPAR search_arg RPAR
+  | search_arg comparison_operator search_arg
+  | search_arg logical_operator search_arg
   | search_arg_expr
-  | in_expr
-  | LPAR search_arg+ RPAR
   ;
 
 search_arg_expr
-  : keyword_expr
+  : fieldname
+  |  keyword_expr
   | wildcard_expr
-  | field_comparison_expr
+  | in_expr
   | subsearch_expr
-  | logical_expr
-  | comparative_expr
-  | unary_operator search_arg_expr
+  //| logical_expr
+  //| comparative_expr
   ;
 
 // https://docs.splunk.com/Documentation/Splunk/8.0.2/SearchReference/Eval
 // eval <field>=<expression>["," <field>=<expression>]...
 spl_command_eval
-  : 'eval' left_side_value EQ eval_expr (',' left_side_value '=' eval_expr)*
+  : 'eval' fieldname EQ eval_expr (',' fieldname EQ eval_expr)*
   ;
 
 eval_expr
@@ -316,10 +305,7 @@ eval_expr
   | function_call_expr
   | INT
   | unary_operator INT
-  | STRING
-  | WORD
   | ID
-  | reserved_keywords
   | subsearch_expr
   | LPAR eval_expr RPAR
   ;
@@ -350,14 +336,14 @@ tstats_fieldname_list
 //          [WHERE <search-query> | <field> IN (<value-list>)]
 //          [BY (<field-list> | (PREFIX(<field>))) [span=<timespan>] ]
 spl_command_tstats
-  : 'tstats' (( 'summariesonly' '=' boolean_value)
-             | ('prestats' '=' boolean_value)
-             | ('local' '=' boolean_value)
-             | ('append' '=' boolean_value)
-             | ('include_reduced_buckets' '=' boolean_value)
-             | ('allow_old_summaries' '=' boolean_value)
-             | ('chunk_size' '=' INT)
-             | ('fillnull_value' '=' STRING))*
+  : 'tstats' (( 'summariesonly' EQ boolean_value)
+             | ('prestats' EQ boolean_value)
+             | ('local' EQ boolean_value)
+             | ('append' EQ boolean_value)
+             | ('include_reduced_buckets' EQ boolean_value)
+             | ('allow_old_summaries' EQ boolean_value)
+             | ('chunk_size' EQ INT)
+             | ('fillnull_value' EQ STRING))*
              aggregation_expr_list
              (FROM ( ('datamodel' EQ fieldname)
                      | (loose_string)
@@ -400,11 +386,11 @@ spl_command_fields
 fields_modifier: MINUS|PLUS;
 
 in_expr
-  : fieldname 'IN' LPAR keyword_expr (',' keyword_expr)* RPAR
-  | fieldname 'IN' LPAR keyword_expr     (keyword_expr)* RPAR   // XXX: Should be banned
-  | fieldname 'IN' LPAR wildcard_expr (',' wildcard_expr)* RPAR
-  | fieldname 'IN' LPAR wildcard_expr     (wildcard_expr)* RPAR // XXX: Should be banned
-  | fieldname 'IN' LPAR subsearch_expr RPAR
+  : fieldname IN LPAR keyword_expr (',' keyword_expr)* RPAR
+  | fieldname IN LPAR keyword_expr     (keyword_expr)* RPAR   // XXX: Should be banned
+  | fieldname IN LPAR wildcard_expr (',' wildcard_expr)* RPAR
+  | fieldname IN LPAR wildcard_expr     (wildcard_expr)* RPAR // XXX: Should be banned
+  | fieldname IN LPAR subsearch_expr RPAR
   ;
 
 logical_expr
@@ -443,7 +429,6 @@ field_comparison_expr
 
 right_value_expr
   : timeExpression
-  | WORD
   | boolean_value
   | wildcard_expr
   | ID
@@ -528,7 +513,6 @@ aggregation_expr
 aggregation_function_expr
   : aggregation_function
   | aggregation_function LPAR aggregation_function_expr RPAR
-  | aggregation_function LPAR eval_expr RPAR
   | aggregation_function LPAR stats_fieldname RPAR
   ;
 
@@ -545,7 +529,7 @@ spl_command_mvexpand // XXX #25
 // https://docs.splunk.com/Documentation/Splunk/8.0.2/SearchReference/Mvcombine
 // mvcombine [delim=<string>] <field>
 spl_command_mvcombine
-  : 'mvcombine' ('delim' '=' loose_string)? fieldname
+  : 'mvcombine' ('delim' EQ loose_string)? fieldname
   ;
 
 spl_command_transaction
@@ -557,8 +541,7 @@ transaction_option
   ;
 
 loose_string
-  : WORD
-  | STRING
+  : STRING
   | ID
   ;
 
@@ -569,8 +552,8 @@ sed_expr: STRING;
 // rex [field=<field>]
 //     ( <regex-expression> [max_match=<int>] [offset_field=<string>] ) | (mode=sed <sed-expression>)
 spl_command_rex
-  : 'rex' 'field' '=' fieldname regex_string (('max_match' '=' INT)|('offset_field' '=' loose_string))*
-  | 'rex' (('field' '=' fieldname)|('mode' '=' SED))+ sed_expr
+  : 'rex' 'field' EQ fieldname regex_string (('max_match' EQ INT)|('offset_field' EQ loose_string))*
+  | 'rex' (('field' EQ fieldname)|('mode' EQ SED))+ sed_expr
   | 'rex' STRING
   ;
 
@@ -582,10 +565,10 @@ spl_command_append
   ;
 
 subsearch_option
-  : 'extendtimerange' '=' boolean_value
-  | 'maxtime' '=' INT
-  | 'maxout' '=' INT
-  | 'timeout' '=' INT
+  : 'extendtimerange' EQ boolean_value
+  | 'maxtime' EQ INT
+  | 'maxout' EQ INT
+  | 'timeout' EQ INT
   ;
 
 // https://docs.splunk.com/Documentation/Splunk/8.0.2/SearchReference/Makeresults
@@ -619,10 +602,10 @@ spl_command_bucket
   ;
 
 bin_option // XXX: I use loose_string randomly
-  : 'bins' '=' loose_string
-  | 'minspan' '=' loose_string
-  | 'span' '=' loose_string
-  | 'aligntime' '=' loose_string
+  : 'bins' EQ loose_string
+  | 'minspan' EQ loose_string
+  | 'span' EQ loose_string
+  | 'aligntime' EQ loose_string
   ;
 
 // https://docs.splunk.com/Documentation/Splunk/8.0.2/SearchReference/Join
@@ -633,11 +616,11 @@ spl_command_join
 
 // type=(inner | outer | left) | usetime=<bool> | earlier=<bool> | overwrite=<bool> | max=<int>
 join_option
-  : 'type' '=' ID
-  | 'usetime' '=' boolean_value
-  | 'earlier' '=' boolean_value
-  | 'overwrite' '=' boolean_value
-  | 'max' '=' INT
+  : 'type' EQ ID
+  | 'usetime' EQ boolean_value
+  | 'earlier' EQ boolean_value
+  | 'overwrite' EQ boolean_value
+  | 'max' EQ INT
   ;
 
 // https://docs.splunk.com/Documentation/Splunk/8.0.2/SearchReference/Makemv
@@ -647,10 +630,10 @@ spl_command_makemv
   ;
 
 makemv_option
-  : 'delim' '=' loose_string
-  | 'tokenizer' '=' loose_string
-  | 'allowempty' '=' boolean_value
-  | 'setsv' '=' boolean_value
+  : 'delim' EQ loose_string
+  | 'tokenizer' EQ loose_string
+  | 'allowempty' EQ boolean_value
+  | 'setsv' EQ boolean_value
   ;
 
 // https://docs.splunk.com/Documentation/Splunk/8.0.2/SearchReference/Timechart
@@ -664,7 +647,7 @@ spl_command_timechart
   ;
 
 timechart_option
-  : 'span' EQ WORD
+  : 'span' EQ ID
   | 'sep' EQ STRING
   | 'format' EQ STRING
   | 'partial' EQ boolean_value
